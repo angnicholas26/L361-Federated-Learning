@@ -3,6 +3,8 @@
 
 """Client utilities for the FEMNIST dataset."""
 
+from datetime import datetime, timezone
+import json
 import logging
 import numbers
 from collections import OrderedDict, defaultdict
@@ -16,6 +18,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from flwr.common.typing import NDArrays, Scalar
+from flwr.server import History
 from torch.nn import Module
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
@@ -27,6 +30,29 @@ from flwr.common.logger import log
 
 class IntentionalDropoutError(BaseException):
     """For clients to intentionally drop out of the federated learning process."""
+
+
+class ModelSizeNotFoundError(BaseException):
+    """Exception raised when model size is not found in config."""
+
+
+def convert(o: Any) -> int | float:
+    """Convert numpy types to Python types."""
+    if isinstance(o, np.integer):
+        return int(o)
+    if isinstance(o, np.floating):
+        return float(o)
+    raise TypeError
+
+
+def save_history(home_dir: Path, hist: History, name: str) -> None:
+    """Save history from simulation to file."""
+    time = int(datetime.now(timezone.utc).timestamp())
+    path = home_dir / "histories"
+    path.mkdir(exist_ok=True)
+    path = path / f"hist_{time}_{name}.json"
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(hist.__dict__, f, ensure_ascii=False, indent=4, default=convert)
 
 
 def get_device() -> str:
@@ -60,7 +86,7 @@ def to_tensor_transform(p: Any) -> torch.Tensor:
     return torch.tensor(p)
 
 
-def load_femnist_dataset(data_dir: Path, mapping: Path, name: str) -> Dataset:
+def load_femnist_dataset(data_dir: Path, mapping: Path, name: str) -> FEMNIST:
     """Load the FEMNIST dataset given the mapping .csv file.
 
     The relevant transforms are automatically applied.
